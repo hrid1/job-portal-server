@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -27,11 +27,55 @@ async function run() {
     // await client.connect();
 
     const jobsCollection = client.db("JobPortal").collection("jobs");
+    const applicationCollection = client
+      .db("JobPortal")
+      .collection("applications");
 
-    // Jobs API
+    // Jobs APIs
     app.get("/jobs", async (req, res) => {
       const jobs = jobsCollection.find();
       const result = await jobs.toArray();
+      res.send(result);
+    });
+
+    app.get("/job/:id", async (req, res) => {
+      const { id } = req.params;
+      const job = await jobsCollection.findOne({ _id: new ObjectId(id) });
+      res.send(job);
+    });
+
+    // Applications APIs
+
+    app.post("/job-application", async (req, res) => {
+      const newApplication = req.body;
+      const result = await applicationCollection.insertOne(newApplication);
+      res.send(result);
+    });
+
+    app.get("/job-application", async (req, res) => {
+      const email = req.query.email;
+      const query = email ? { applicant_email: email } : {};
+      const result = await applicationCollection.find(query).toArray();
+
+      // wrost way to aggregate data
+      for (const application of result) {
+        // console.log(application.job_id)
+        const query1 = { _id: new ObjectId(application.job_id) };
+        const job = await jobsCollection.findOne(query1);
+        if (job) {
+          application.title = job.title;
+          application.company = job.company;
+          application.company_logo = job.company_logo;
+        }
+      }
+      res.send(result);
+    });
+
+    app.delete("/job-application/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await applicationCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
