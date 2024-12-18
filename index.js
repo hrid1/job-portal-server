@@ -9,9 +9,28 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cookieParser());
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: "Access Denied" });
+  }
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "Invalid Token" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.54rjrr8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -85,9 +104,13 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/job-application", async (req, res) => {
+    app.get("/job-application", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = email ? { applicant_email: email } : {};
+      // console.log("cuk cuk cokie", req.cookies);
+      if(req.user.email !== req.query.email){
+        return res.status(403).send({message: "forbidden Access"})
+      }
       const result = await applicationCollection.find(query).toArray();
 
       // wrost way to aggregate data
